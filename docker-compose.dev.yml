@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  # PostgreSQL (개발용)
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: medtranslate
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+    ports:
+      - "54321:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+
+  # Redis (개발용)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "63790:6379"
+    volumes:
+      - redis_dev_data:/data
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:

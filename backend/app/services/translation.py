@@ -10,8 +10,17 @@ logger = logging.getLogger(__name__)
 
 class TranslationService:
     def __init__(self):
-        self.claude = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+        self.claude = None
         self.medical_glossary = self._load_glossary()
+
+    def _init_claude(self):
+        """Lazy initialization of Claude client"""
+        if self.claude is None:
+            try:
+                self.claude = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+            except Exception as e:
+                logger.error(f"Failed to initialize Claude client: {e}")
+                raise
 
     def _load_glossary(self):
         """의료 용어집 로드"""
@@ -68,6 +77,9 @@ class TranslationService:
         context: str
     ) -> str:
         """Claude API로 번역"""
+
+        # Initialize Claude client if not already done
+        self._init_claude()
 
         # 용어집 컨텍스트 생성
         glossary_context = self._create_glossary_context(source_lang, target_lang)
