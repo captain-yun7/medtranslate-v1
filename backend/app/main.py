@@ -5,6 +5,8 @@ import uvicorn
 
 from app.config import settings
 from app.socket.handlers import register_socket_handlers
+from app.routers import chat, monitoring
+from app.services.cache import cache_service
 
 # FastAPI 앱
 app = FastAPI(
@@ -47,10 +49,16 @@ async def health_check():
     return {"status": "healthy"}
 
 
-# API 라우터 (나중에 추가)
-# app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
-# app.include_router(agent.router, prefix="/api/agent", tags=["agent"])
-# app.include_router(translation.router, prefix="/api/translation", tags=["translation"])
+@app.on_event("startup")
+async def startup_event():
+    """앱 시작 시 초기화"""
+    # Redis 연결
+    await cache_service.connect()
+
+
+# API 라우터
+app.include_router(chat.router)
+app.include_router(monitoring.router)
 
 
 if __name__ == "__main__":
