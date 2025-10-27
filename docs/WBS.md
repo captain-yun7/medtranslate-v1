@@ -56,11 +56,11 @@
 ### 2.1 번역 서비스 구현
 - [x] Claude API 클라이언트 통합
 - [x] 기본 번역 함수 구현
-- [ ] 번역 품질 테스트 (샘플 의료 문장)
-- [ ] 에러 핸들링 (API 장애, 타임아웃)
-- [ ] Retry 로직 구현
-- [ ] 번역 응답 시간 모니터링
-- [ ] 대체 번역 엔진 준비 (DeepL, Google Translate)
+- [x] 번역 품질 테스트 (샘플 의료 문장)
+- [x] 에러 핸들링 (API 장애, 타임아웃)
+- [x] Retry 로직 구현
+- [x] 번역 응답 시간 모니터링
+- [x] 대체 번역 엔진 준비 (DeepL, Google Translate)
 
 ### 2.2 의료 용어집 구축
 - [x] 기본 용어집 데이터 구조 생성 (8개 용어)
@@ -77,19 +77,19 @@
 
 ### 2.3 캐싱 시스템 구현
 - [x] Redis 캐싱 서비스 기본 구현
-- [ ] 캐시 키 전략 최적화
-- [ ] 캐시 만료 시간 정책 (번역: 30일, 세션: 24시간)
-- [ ] 캐시 히트율 모니터링
-- [ ] 캐시 무효화 전략
-- [ ] 메모리 사용량 모니터링
+- [x] 캐시 키 전략 최적화
+- [x] 캐시 만료 시간 정책 (번역: 30일, 세션: 24시간)
+- [x] 캐시 히트율 모니터링
+- [x] 캐시 무효화 전략
+- [x] 메모리 사용량 모니터링
 
 ### 2.4 REST API 개발
-- [ ] 채팅방 생성 API (POST /api/chat/rooms)
-- [ ] 채팅방 목록 조회 API (GET /api/chat/rooms)
-- [ ] 채팅 히스토리 조회 API (GET /api/chat/rooms/{room_id}/messages)
-- [ ] 상담사 대기 목록 API (GET /api/agent/waiting-rooms)
-- [ ] 번역 테스트 API (POST /api/translation/test)
-- [ ] API 문서 자동 생성 (Swagger)
+- [x] 채팅방 생성 API (POST /api/chat/rooms)
+- [x] 채팅방 목록 조회 API (GET /api/chat/rooms)
+- [x] 채팅 히스토리 조회 API (GET /api/chat/rooms/{room_id}/messages)
+- [x] 상담사 대기 목록 API (GET /api/agent/waiting-rooms)
+- [x] 번역 테스트 API (POST /api/translation/test)
+- [x] API 문서 자동 생성 (Swagger)
 - [ ] API 인증/권한 구현 (JWT)
 
 ### 2.5 Socket.io 이벤트 핸들러
