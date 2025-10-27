@@ -12,8 +12,8 @@
 - [x] 프로젝트 디렉토리 구조 생성
 - [x] Docker Compose 설정 파일 작성 (docker-compose.dev.yml)
 - [x] 개발용 .env 파일 설정 (backend/.env, frontend/.env.local)
-- [ ] VSCode / IDE 개발 환경 설정
-- [ ] Git 브랜치 전략 수립 (main, develop, feature/*)
+- [x] VSCode / IDE 개발 환경 설정
+- [x] Git 브랜치 전략 수립 (main, develop, feature/*)
 
 ### 1.2 Backend 기반 구축
 - [x] FastAPI 프로젝트 초기 설정
@@ -33,16 +33,16 @@
 - [x] 의존성 패키지 설치 (npm install - 157개 패키지)
 - [x] 기본 라우팅 구조 검증 (포트 3001 실행 중)
 - [x] 환경 변수 설정 (.env.local - API URL 설정)
-- [ ] 반응형 레이아웃 기본 틀 작성
+- [x] 반응형 레이아웃 기본 틀 작성
 
 ### 1.4 데이터베이스 설계
-- [ ] ERD (Entity Relationship Diagram) 작성
+- [x] ERD (Entity Relationship Diagram) 작성
 - [x] 채팅방 테이블 스키마 확정 (ChatRoom 테이블 생성)
 - [x] 메시지 테이블 스키마 확정 (Message 테이블 생성)
-- [ ] 상담사 테이블 스키마 설계
-- [ ] 고객 세션 테이블 스키마 설계
-- [ ] 인덱스 전략 수립
-- [ ] 데이터 백업 정책 수립
+- [x] 상담사 테이블 스키마 설계
+- [x] 고객 세션 테이블 스키마 설계
+- [x] 인덱스 전략 수립
+- [x] 데이터 백업 정책 수립
 
 **산출물:**
 - ✅ Docker Compose 실행 가능한 환경 (docker-compose.dev.yml)
@@ -389,20 +389,26 @@
 
 ## 진행 상황
 
-**전체 진행률: ~20%**
+**전체 진행률: ~25%**
 
-- ✅ Phase 1.1: 개발 환경 세팅 (85% 완료)
-- ✅ Phase 1.2: Backend 기반 구축 (95% 완료)
-- ✅ Phase 1.3: Frontend 기반 구축 (85% 완료)
-- 🔄 Phase 1.4: 데이터베이스 설계 (50% 완료)
+- ✅ Phase 1.1: 개발 환경 세팅 (100% 완료)
+- ✅ Phase 1.2: Backend 기반 구축 (100% 완료)
+- ✅ Phase 1.3: Frontend 기반 구축 (100% 완료)
+- ✅ Phase 1.4: 데이터베이스 설계 (100% 완료)
 
 **Phase 1 완료 항목:**
-- ✅ Git 저장소 및 3개 커밋 완료
+- ✅ Git 저장소 및 4개 커밋 완료
 - ✅ Backend 서버 실행 중 (http://localhost:8001)
 - ✅ Frontend 서버 실행 중 (http://localhost:3001)
 - ✅ PostgreSQL + Redis Docker 컨테이너 실행 중
-- ✅ 데이터베이스 스키마 마이그레이션 완료
+- ✅ 데이터베이스 스키마 마이그레이션 완료 (agents, sessions 테이블 추가)
+- ✅ 데이터베이스 인덱스 13개 생성 완료
 - ✅ Python 가상환경 및 npm 패키지 설치 완료
+- ✅ VSCode 개발 환경 설정 (.vscode, .editorconfig)
+- ✅ Git 브랜치 전략 문서화 (docs/GIT_STRATEGY.md)
+- ✅ 반응형 레이아웃 컴포넌트 작성 (Header, Footer, Container)
+- ✅ ERD 문서 작성 (docs/ERD.md)
+- ✅ 데이터베이스 인덱스 및 백업 전략 문서 (docs/DATABASE_STRATEGY.md)
 
 **다음 할 일 (Phase 2):**
 1. Anthropic API 키 설정 및 번역 기능 테스트
