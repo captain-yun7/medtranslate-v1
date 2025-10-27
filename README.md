@@ -80,68 +80,99 @@ medtranslate-v1/
 └── README.md
 ```
 
-## 시작하기
+## Quick Start - MVP Demo
+
+### 현재 상태
+- ✅ Socket.io 실시간 통신
+- ✅ AI 번역 (Mock 모드 - API 키 설정 시 실제 번역)
+- ✅ 고객용 채팅 UI
+- ✅ 상담사용 콘솔
+- ✅ 타이핑 표시
+- ✅ 다국어 지원
 
 ### 1. 환경 변수 설정
 
 ```bash
-# 프로젝트 루트에서
-cp .env.example .env
+# Backend 환경변수 (.env 이미 설정됨)
+cd backend
+# ANTHROPIC_API_KEY=your_api_key (선택사항 - 설정 안하면 Mock 번역 사용)
 
-# .env 파일을 열어 API 키 설정
-ANTHROPIC_API_KEY=your_api_key_here
+# Frontend 환경변수 (.env.local 이미 설정됨)
+cd frontend
+# NEXT_PUBLIC_API_URL=http://localhost:8001
 ```
 
-### 2. Docker Compose로 실행
+### 2. 서비스 실행
 
-```bash
-# 모든 서비스 시작 (백엔드, 프론트엔드, DB, Redis)
-docker-compose up -d
-
-# 로그 확인
-docker-compose logs -f
-```
-
-### 3. 개별 서비스 실행
-
-#### Backend
+#### Backend (포트 8001)
 
 ```bash
 cd backend
 
-# 가상환경 생성 및 활성화
-python -m venv venv
+# 가상환경 활성화
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# 의존성 설치
-pip install -r requirements.txt
-
-# .env 파일 설정
-cp .env.example .env
-
-# 서버 실행
-uvicorn app.main:socket_app --reload
+# 서버 실행 (이미 실행 중이면 생략)
+uvicorn app.main:socket_app --host 0.0.0.0 --port 8001 --reload
 ```
 
-Backend API: http://localhost:8000
-API 문서: http://localhost:8000/api/docs
+Backend API: http://localhost:8001
+API 문서: http://localhost:8001/api/docs
 
-#### Frontend
+#### Frontend (포트 3000-3009)
 
 ```bash
 cd frontend
 
-# 의존성 설치
-npm install
-
-# .env.local 설정
-cp .env.local.example .env.local
-
-# 개발 서버 실행
+# 개발 서버 실행 (이미 실행 중이면 생략)
 npm run dev
 ```
 
-Frontend: http://localhost:3000
+Frontend: http://localhost:3000 (또는 3001-3009)
+
+### 3. MVP 데모 실행
+
+#### 방법 1: 수동 테스트
+
+1. **채팅방 생성**
+   ```bash
+   curl -X POST http://localhost:8001/api/chat/rooms \
+     -H "Content-Type: application/json" \
+     -d '{"customer_language":"vi"}'
+
+   # 응답에서 room_id 확인
+   # 예: {"id":"room_abc123","customer_language":"vi",...}
+   ```
+
+2. **고객 페이지 접속**
+   ```
+   http://localhost:3001/chat/room_abc123
+   ```
+
+3. **상담사 콘솔 접속** (새 브라우저 탭)
+   ```
+   http://localhost:3001/agent
+   ```
+   - "Join Chat" 버튼 클릭하여 대기 중인 채팅방 입장
+
+4. **채팅 테스트**
+   - 고객: 베트남어로 메시지 입력 (예: "Xin chào")
+   - 상담사: 한국어로 응답 (예: "안녕하세요")
+   - 양방향 실시간 번역 확인
+
+#### 방법 2: 자동화 테스트
+
+```bash
+# 백엔드와 프론트엔드가 실행 중인 상태에서
+cd frontend
+node test-e2e-chat.js
+
+# 예상 결과:
+# ✅ Customer connected
+# ✅ Agent connected
+# ✅ Messages sent/received with translations
+# ✅ Tests passed: 8
+```
 
 ## 주요 기능
 
@@ -176,12 +207,26 @@ Frontend: http://localhost:3000
 - `GET /health` - Health status
 - `GET /api/docs` - Swagger API 문서
 
-### Socket.io Events
+### Socket.io Events (Updated for MVP)
 
 #### 클라이언트 → 서버
 - `join_room` - 채팅방 입장
-- `customer_message` - 고객 메시지 전송
-- `agent_message` - 상담사 메시지 전송
+  ```json
+  {
+    "room_id": "room_abc123",
+    "user_type": "customer" | "agent",
+    "language": "vi",
+    "agent_id": "agent_001" // agent만
+  }
+  ```
+- `send_message` - 메시지 전송 (통합 이벤트)
+  ```json
+  {
+    "room_id": "room_abc123",
+    "text": "메시지 내용",
+    "language": "vi" | "ko"
+  }
+  ```
 - `typing` - 타이핑 시작
 - `stop_typing` - 타이핑 중지
 - `end_chat` - 채팅 종료
@@ -189,11 +234,19 @@ Frontend: http://localhost:3000
 #### 서버 → 클라이언트
 - `connected` - 연결 확인
 - `joined_room` - 입장 확인
-- `customer_receive_message` - 고객 메시지 수신
-- `agent_receive_message` - 상담사 메시지 수신
-- `message_sent` - 발신 확인
-- `user_typing` - 상대방 타이핑 중
-- `user_stop_typing` - 타이핑 중지
+- `new_message` - 메시지 수신 (통합 이벤트)
+  ```json
+  {
+    "sender_type": "customer" | "agent",
+    "text": "원문",
+    "translated_text": "번역문",
+    "source_lang": "vi",
+    "target_lang": "ko"
+  }
+  ```
+- `typing` - 상대방 타이핑 중
+- `stop_typing` - 타이핑 중지
+- `agent_online` / `customer_online` - 상대방 온라인
 - `chat_ended` - 채팅 종료
 
 ## 번역 흐름
@@ -214,17 +267,42 @@ Frontend: http://localhost:3000
 
 ## 개발 로드맵
 
-- [x] 백엔드 기본 구조 및 Socket.io 서버
-- [x] 번역 서비스 (Claude API)
-- [x] 세션 관리
-- [x] 프론트엔드 기본 UI
+### Phase 1: 프로젝트 기반 설정 (완료 ✅)
+- [x] 프로젝트 구조 및 디렉토리 설정
+- [x] 개발 환경 설정 (VSCode, Git)
+- [x] ERD 및 데이터베이스 스키마 설계
+- [x] 데이터베이스 마이그레이션 설정
+
+### Phase 2: REST API & 번역 엔진 (완료 ✅)
+- [x] FastAPI 백엔드 기본 구조
+- [x] Socket.io 실시간 통신 서버
+- [x] 번역 서비스 (Claude API with Mock fallback)
+- [x] Redis 캐싱 시스템
+- [x] REST API 엔드포인트 (채팅방, 메시지, 모니터링)
+- [x] 에러 핸들링 및 재시도 로직
+
+### Phase 3: 고객 UI (완료 ✅)
+- [x] Next.js 프론트엔드 설정
 - [x] 고객용 채팅 페이지
-- [ ] 상담사용 콘솔
-- [ ] 데이터베이스 연동
+- [x] 반응형 UI 컴포넌트
+- [x] 언어 선택기
+- [x] 타이핑 표시
+- [x] 연결 상태 표시
+
+### Phase 4: 상담사 콘솔 (MVP 완료 ✅)
+- [x] 상담사용 콘솔 페이지
+- [x] 대기 중인 채팅방 목록
+- [x] 상담사 채팅 페이지
+- [x] 실시간 채팅 및 번역
+
+### 향후 계획
+- [ ] 데이터베이스 연동 (메시지 저장)
 - [ ] 인증/권한 시스템
 - [ ] 파일 첨부 기능
 - [ ] 채팅 히스토리
-- [ ] 통계 및 모니터링
+- [ ] 통계 및 모니터링 대시보드
+- [ ] 상담사 배정 로직
+- [ ] 알림 시스템
 
 ## 환경 변수
 

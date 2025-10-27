@@ -7,9 +7,10 @@ interface UseChatProps {
   roomId: string;
   userType: 'customer' | 'agent';
   language?: string;
+  agentId?: string;
 }
 
-export function useChat({ socket, roomId, userType, language }: UseChatProps) {
+export function useChat({ socket, roomId, userType, language, agentId }: UseChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
@@ -21,7 +22,8 @@ export function useChat({ socket, roomId, userType, language }: UseChatProps) {
     socket.emit('join_room', {
       room_id: roomId,
       user_type: userType,
-      customer_language: language,
+      language: language,
+      agent_id: agentId,
     });
 
     // 입장 확인
@@ -29,64 +31,38 @@ export function useChat({ socket, roomId, userType, language }: UseChatProps) {
       console.log('Joined room:', data);
     });
 
-    // 메시지 수신
+    // 통합 메시지 수신
+    socket.on('new_message', (data) => {
+      const messageType = data.sender_type === userType ? 'sent' : 'received';
+
+      setMessages(prev => [...prev, {
+        id: `msg_${Date.now()}_${Math.random()}`,
+        type: messageType,
+        text: data.text,
+        translated: data.translated_text,
+        sourceLang: data.source_lang,
+        targetLang: data.target_lang,
+        timestamp: new Date().toISOString(),
+      }]);
+    });
+
+    // 온라인 상태
     if (userType === 'customer') {
-      socket.on('customer_receive_message', (data) => {
-        setMessages(prev => [...prev, {
-          id: data.message_id,
-          type: 'received',
-          text: data.message,
-          timestamp: data.timestamp,
-        }]);
-      });
-
-      socket.on('message_sent', (data) => {
-        setMessages(prev => [...prev, {
-          id: data.message_id,
-          type: 'sent',
-          text: data.message,
-          timestamp: data.timestamp,
-        }]);
-      });
-
       socket.on('agent_online', () => {
         setIsOnline(true);
       });
     } else {
-      // agent
-      socket.on('agent_receive_message', (data) => {
-        setMessages(prev => [...prev, {
-          id: data.message_id,
-          type: 'received',
-          original: data.original,
-          translated: data.translated,
-          text: data.translated,
-          sourceLang: data.source_lang,
-          timestamp: data.timestamp,
-        }]);
-      });
-
-      socket.on('message_sent', (data) => {
-        setMessages(prev => [...prev, {
-          id: data.message_id,
-          type: 'sent',
-          text: data.original,
-          translated: data.translated,
-          timestamp: data.timestamp,
-        }]);
-      });
-
       socket.on('customer_online', (data) => {
         setIsOnline(true);
       });
     }
 
     // 타이핑 표시
-    socket.on('user_typing', () => {
+    socket.on('typing', () => {
       setIsTyping(true);
     });
 
-    socket.on('user_stop_typing', () => {
+    socket.on('stop_typing', () => {
       setIsTyping(false);
     });
 
@@ -97,42 +73,38 @@ export function useChat({ socket, roomId, userType, language }: UseChatProps) {
 
     return () => {
       socket.off('joined_room');
-      socket.off('customer_receive_message');
-      socket.off('agent_receive_message');
-      socket.off('message_sent');
-      socket.off('user_typing');
-      socket.off('user_stop_typing');
+      socket.off('new_message');
+      socket.off('agent_online');
+      socket.off('customer_online');
+      socket.off('typing');
+      socket.off('stop_typing');
       socket.off('chat_ended');
     };
-  }, [socket, roomId, userType, language]);
+  }, [socket, roomId, userType, language, agentId]);
 
   const sendMessage = useCallback((message: string) => {
     if (!socket || !message.trim()) return;
 
-    const event = userType === 'customer' ? 'customer_message' : 'agent_message';
-
-    socket.emit(event, {
+    socket.emit('send_message', {
       room_id: roomId,
-      message: message,
-      timestamp: new Date().toISOString(),
+      text: message,
+      language: language || 'ko',
     });
-  }, [socket, roomId, userType]);
+  }, [socket, roomId, language]);
 
   const sendTyping = useCallback(() => {
     if (!socket) return;
     socket.emit('typing', {
       room_id: roomId,
-      user_type: userType,
     });
-  }, [socket, roomId, userType]);
+  }, [socket, roomId]);
 
   const sendStopTyping = useCallback(() => {
     if (!socket) return;
     socket.emit('stop_typing', {
       room_id: roomId,
-      user_type: userType,
     });
-  }, [socket, roomId, userType]);
+  }, [socket, roomId]);
 
   const endChat = useCallback(() => {
     if (!socket) return;

@@ -41,7 +41,7 @@ def register_socket_handlers(sio: socketio.AsyncServer):
             room_id=room_id,
             sid=sid,
             user_type=user_type,
-            language=data.get('customer_language'),
+            language=data.get('language') or data.get('customer_language'),
             agent_id=data.get('agent_id')
         )
 
@@ -178,44 +178,140 @@ def register_socket_handlers(sio: socketio.AsyncServer):
                 'message': 'Translation failed'
             }, room=sid)
 
+    @sio.on('send_message')
+    async def handle_send_message(sid, data):
+        """
+        통합 메시지 전송 핸들러
+        data = {
+            'room_id': 'room_123',
+            'text': 'message text',
+            'language': 'en' or 'ko'
+        }
+        """
+        room_id = data['room_id']
+        text = data['text']
+        source_lang = data.get('language', 'ko')
+
+        # 세션 정보 가져오기
+        session = await session_manager.get_session(room_id)
+        if not session:
+            await sio.emit('error', {'message': 'Session not found'}, room=sid)
+            return
+
+        # 발신자 유형 확인
+        sender_type = 'agent' if sid == session.get('agent_sid') else 'customer'
+
+        try:
+            # 번역 처리
+            if sender_type == 'customer':
+                # 고객 메시지 -> 한국어로 번역
+                target_lang = 'ko'
+                translated = await translation_service.translate(
+                    text=text,
+                    source_lang=source_lang,
+                    target_lang=target_lang,
+                    context='medical'
+                )
+
+                # 상담사에게 전송
+                agent_sid = session.get('agent_sid')
+                if agent_sid:
+                    await sio.emit('new_message', {
+                        'sender_type': 'customer',
+                        'text': text,
+                        'translated_text': translated,
+                        'source_lang': source_lang,
+                        'target_lang': target_lang
+                    }, room=agent_sid)
+
+                # 고객에게도 전송 (에코)
+                await sio.emit('new_message', {
+                    'sender_type': 'customer',
+                    'text': text,
+                    'translated_text': translated,
+                    'source_lang': source_lang,
+                    'target_lang': target_lang
+                }, room=sid)
+
+            else:
+                # 상담사 메시지 -> 고객 언어로 번역
+                target_lang = session.get('customer_language', 'en')
+                translated = await translation_service.translate(
+                    text=text,
+                    source_lang='ko',
+                    target_lang=target_lang,
+                    context='medical'
+                )
+
+                # 고객에게 전송
+                customer_sid = session.get('customer_sid')
+                if customer_sid:
+                    await sio.emit('new_message', {
+                        'sender_type': 'agent',
+                        'text': translated,
+                        'translated_text': text,
+                        'source_lang': 'ko',
+                        'target_lang': target_lang
+                    }, room=customer_sid)
+
+                # 상담사에게도 전송 (에코)
+                await sio.emit('new_message', {
+                    'sender_type': 'agent',
+                    'text': text,
+                    'translated_text': translated,
+                    'source_lang': 'ko',
+                    'target_lang': target_lang
+                }, room=sid)
+
+        except Exception as e:
+            logger.error(f"Translation error: {str(e)}")
+            await sio.emit('error', {
+                'message': 'Translation failed',
+                'detail': str(e)
+            }, room=sid)
+
     @sio.on('typing')
     async def handle_typing(sid, data):
         """타이핑 표시"""
         room_id = data['room_id']
-        user_type = data['user_type']
 
         session = await session_manager.get_session(room_id)
+        if not session:
+            return
+
+        # 세션에서 발신자 타입 확인
+        user_type = 'agent' if sid == session.get('agent_sid') else 'customer'
 
         # 상대방에게만 전송
         if user_type == 'customer':
             agent_sid = session.get('agent_sid')
             if agent_sid:
-                await sio.emit('user_typing', {
-                    'user_type': 'customer'
-                }, room=agent_sid)
+                await sio.emit('typing', {}, room=agent_sid)
         else:
             customer_sid = session.get('customer_sid')
             if customer_sid:
-                await sio.emit('user_typing', {
-                    'user_type': 'agent'
-                }, room=customer_sid)
+                await sio.emit('typing', {}, room=customer_sid)
 
     @sio.on('stop_typing')
     async def handle_stop_typing(sid, data):
         """타이핑 중지"""
         room_id = data['room_id']
-        user_type = data['user_type']
 
         session = await session_manager.get_session(room_id)
+        if not session:
+            return
+
+        # 세션에서 발신자 타입 확인
+        user_type = 'agent' if sid == session.get('agent_sid') else 'customer'
 
         if user_type == 'customer':
             agent_sid = session.get('agent_sid')
             if agent_sid:
-                await sio.emit('user_stop_typing', {}, room=agent_sid)
+                await sio.emit('stop_typing', {}, room=agent_sid)
         else:
             customer_sid = session.get('customer_sid')
             if customer_sid:
-                await sio.emit('user_stop_typing', {}, room=customer_sid)
+                await sio.emit('stop_typing', {}, room=customer_sid)
 
     @sio.on('end_chat')
     async def handle_end_chat(sid, data):
