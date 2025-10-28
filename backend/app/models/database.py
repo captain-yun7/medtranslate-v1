@@ -83,7 +83,69 @@ class CustomerSession(Base):
     extra_data = Column(JSON, nullable=True)  # metadata is reserved
 
 
-# DB 헬퍼 함수 (TODO: 나중에 구현)
-async def save_message(**kwargs):
-    """메시지 저장 함수 (구현 필요)"""
-    pass
+# DB 헬퍼 함수
+def save_message(
+    db_session,
+    room_id: str,
+    sender_type: str,
+    original_text: str,
+    translated_text: str = None,
+    source_lang: str = None,
+    target_lang: str = None,
+    sender_id: str = None
+) -> Message:
+    """
+    메시지를 데이터베이스에 저장
+
+    Args:
+        db_session: SQLAlchemy 세션
+        room_id: 채팅방 ID
+        sender_type: 발신자 유형 ('customer' or 'agent')
+        original_text: 원문
+        translated_text: 번역문
+        source_lang: 원문 언어
+        target_lang: 번역 대상 언어
+        sender_id: 발신자 ID (optional)
+
+    Returns:
+        Message: 저장된 메시지 객체
+    """
+    message = Message(
+        room_id=room_id,
+        sender_type=sender_type,
+        sender_id=sender_id,
+        original_text=original_text,
+        translated_text=translated_text,
+        source_lang=source_lang,
+        target_lang=target_lang,
+        created_at=datetime.utcnow()
+    )
+
+    db_session.add(message)
+    db_session.commit()
+    db_session.refresh(message)
+
+    return message
+
+
+def get_messages(db_session, room_id: str, limit: int = 100, offset: int = 0):
+    """
+    채팅방의 메시지 히스토리 조회
+
+    Args:
+        db_session: SQLAlchemy 세션
+        room_id: 채팅방 ID
+        limit: 조회할 메시지 수 (기본 100)
+        offset: 건너뛸 메시지 수 (기본 0)
+
+    Returns:
+        List[Message]: 메시지 리스트 (오래된 순)
+    """
+    messages = db_session.query(Message)\
+        .filter(Message.room_id == room_id)\
+        .order_by(Message.created_at.asc())\
+        .offset(offset)\
+        .limit(limit)\
+        .all()
+
+    return messages

@@ -1,6 +1,8 @@
 import socketio
 from app.services.translation import translation_service
 from app.services.session import session_manager
+from app.database import SessionLocal
+from app.models.database import save_message
 import logging
 
 logger = logging.getLogger(__name__)
@@ -213,6 +215,21 @@ def register_socket_handlers(sio: socketio.AsyncServer):
                     context='medical'
                 )
 
+                # DB에 메시지 저장
+                db = SessionLocal()
+                try:
+                    save_message(
+                        db_session=db,
+                        room_id=room_id,
+                        sender_type='customer',
+                        original_text=text,
+                        translated_text=translated,
+                        source_lang=source_lang,
+                        target_lang=target_lang
+                    )
+                finally:
+                    db.close()
+
                 # 상담사에게 전송
                 agent_sid = session.get('agent_sid')
                 if agent_sid:
@@ -242,6 +259,22 @@ def register_socket_handlers(sio: socketio.AsyncServer):
                     target_lang=target_lang,
                     context='medical'
                 )
+
+                # DB에 메시지 저장
+                db = SessionLocal()
+                try:
+                    save_message(
+                        db_session=db,
+                        room_id=room_id,
+                        sender_type='agent',
+                        original_text=text,
+                        translated_text=translated,
+                        source_lang='ko',
+                        target_lang=target_lang,
+                        sender_id=session.get('agent_id')
+                    )
+                finally:
+                    db.close()
 
                 # 고객에게 전송
                 customer_sid = session.get('customer_sid')
