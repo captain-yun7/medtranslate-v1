@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
 
+    # JWT Settings
+    JWT_SECRET_KEY: str = "your-secret-key-here-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_HOURS: int = 24
+
     class Config:
         env_file = ".env"
         case_sensitive = True

@@ -5,7 +5,7 @@ import uvicorn
 
 from app.config import settings
 from app.socket.handlers import register_socket_handlers
-from app.routers import chat, monitoring
+from app.routers import chat, monitoring, auth
 from app.services.cache import cache_service
 
 # FastAPI 앱
@@ -57,6 +57,7 @@ async def startup_event():
 
 
 # API 라우터
+app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(monitoring.router)
 
