@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 import uuid
 from datetime import datetime
 
@@ -11,9 +11,10 @@ from app.schemas.chat import (
     TranslationTestRequest,
     TranslationTestResponse
 )
-from app.models.database import ChatRoom, Message
+from app.models.database import ChatRoom, Message, Agent
 from app.database import get_db
 from app.services.translation import translation_service
+from app.dependencies import get_current_agent
 import time
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
@@ -67,6 +68,73 @@ async def get_chat_rooms(
     rooms = query.order_by(ChatRoom.created_at.desc()).limit(limit).all()
 
     return rooms
+
+
+@router.get("/agent/rooms", response_model=List[ChatRoomResponse])
+async def get_agent_rooms(
+    include_waiting: bool = True,
+    db: Session = Depends(get_db),
+    current_agent: Agent = Depends(get_current_agent)
+):
+    """
+    현재 로그인한 상담사의 채팅방 목록 조회
+
+    - **include_waiting**: 대기 중인 채팅방도 포함 (기본 True)
+
+    Returns:
+        - 상담사에게 할당된 활성 채팅방
+        - include_waiting=True인 경우, 미할당 대기 채팅방도 포함
+    """
+    # 상담사에게 할당된 활성 채팅방
+    query = db.query(ChatRoom).filter(
+        ChatRoom.agent_id == current_agent.id,
+        ChatRoom.status.in_(['waiting', 'active'])
+    )
+
+    assigned_rooms = query.order_by(ChatRoom.created_at.desc()).all()
+
+    # 대기 중인 미할당 채팅방 추가
+    if include_waiting:
+        waiting_rooms = db.query(ChatRoom).filter(
+            ChatRoom.agent_id == None,
+            ChatRoom.status == 'waiting'
+        ).order_by(ChatRoom.created_at.desc()).limit(10).all()
+
+        return assigned_rooms + waiting_rooms
+
+    return assigned_rooms
+
+
+@router.post("/rooms/{room_id}/assign", response_model=ChatRoomResponse)
+async def assign_room_to_agent(
+    room_id: str,
+    db: Session = Depends(get_db),
+    current_agent: Agent = Depends(get_current_agent)
+):
+    """
+    채팅방을 현재 상담사에게 할당
+
+    대기 중인 채팅방을 상담사가 수락할 때 사용
+    """
+    room = db.query(ChatRoom).filter(ChatRoom.id == room_id).first()
+
+    if not room:
+        raise HTTPException(status_code=404, detail="채팅방을 찾을 수 없습니다")
+
+    if room.status != 'waiting':
+        raise HTTPException(status_code=400, detail="대기 중인 채팅방만 할당할 수 있습니다")
+
+    if room.agent_id and room.agent_id != current_agent.id:
+        raise HTTPException(status_code=400, detail="이미 다른 상담사에게 할당된 채팅방입니다")
+
+    # 상담사 할당 및 상태 변경
+    room.agent_id = current_agent.id
+    room.status = 'active'
+
+    db.commit()
+    db.refresh(room)
+
+    return room
 
 
 @router.get("/rooms/{room_id}", response_model=ChatRoomResponse)
