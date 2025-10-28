@@ -13,7 +13,7 @@ import {
 
 export default function AgentChatPage({ params }: { params: { roomId: string } }) {
   const router = useRouter();
-  const { socket, isConnected } = useSocket();
+  const { socket, isConnected, isReconnecting } = useSocket();
   const [inputText, setInputText] = useState('');
   const [showTranslation, setShowTranslation] = useState(true);
   const [agentId, setAgentId] = useState('');
@@ -115,7 +115,7 @@ export default function AgentChatPage({ params }: { params: { roomId: string } }
       </header>
 
       {/* Connection Status */}
-      <ConnectionStatus isConnected={isConnected} />
+      <ConnectionStatus isConnected={isConnected} isReconnecting={isReconnecting} />
 
       {/* Room Info */}
       <div className="px-4 py-2 bg-white border-b border-gray-200 text-sm text-gray-600">

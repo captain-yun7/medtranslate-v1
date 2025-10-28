@@ -12,7 +12,7 @@ import {
 } from '@/components/chat';
 
 export default function ChatPage({ params }: { params: { roomId: string } }) {
-  const { socket, isConnected } = useSocket();
+  const { socket, isConnected, isReconnecting } = useSocket();
   const [inputText, setInputText] = useState('');
   const [language, setLanguage] = useState('vi');
   const [showTranslation, setShowTranslation] = useState(true);
@@ -82,7 +82,7 @@ export default function ChatPage({ params }: { params: { roomId: string } }) {
       </header>
 
       {/* 연결 상태 알림 */}
-      <ConnectionStatus isConnected={isConnected} />
+      <ConnectionStatus isConnected={isConnected} isReconnecting={isReconnecting} />
 
       {/* 언어 선택 */}
       <div className="px-4 py-3 bg-white border-b border-gray-200 shadow-sm">
