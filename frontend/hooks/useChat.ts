@@ -26,9 +26,59 @@ export function useChat({ socket, roomId, userType, language, agentId }: UseChat
       agent_id: agentId,
     });
 
-    // 입장 확인
-    socket.on('joined_room', (data) => {
+    // 입장 확인 및 히스토리 로드
+    socket.on('joined_room', async (data) => {
       console.log('Joined room:', data);
+
+      // 채팅 히스토리 불러오기
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/chat/rooms/${roomId}/messages`);
+        if (response.ok) {
+          const history = await response.json();
+
+          // 히스토리 메시지를 프론트엔드 형식으로 변환
+          const formattedMessages = history.map((msg: any) => {
+            const messageType = msg.sender_type === userType ? 'sent' : 'received';
+
+            // Agent/Customer에 따라 text와 translated 위치 조정
+            let displayText = msg.original_text;
+            let displayTranslated = msg.translated_text;
+
+            if (userType === 'agent' && messageType === 'received') {
+              // 상담사가 고객 메시지를 볼 때: 한국어 번역을 주로
+              displayText = msg.translated_text;
+              displayTranslated = msg.original_text;
+            } else if (userType === 'agent' && messageType === 'sent') {
+              // 상담사 자신의 메시지: 한국어만
+              displayText = msg.original_text;
+              displayTranslated = undefined;
+            } else if (userType === 'customer' && messageType === 'received') {
+              // 고객이 상담사 메시지를 볼 때: 번역된 외국어를 주로
+              displayText = msg.translated_text;
+              displayTranslated = msg.original_text;
+            } else if (userType === 'customer' && messageType === 'sent') {
+              // 고객 자신의 메시지: 외국어만
+              displayText = msg.original_text;
+              displayTranslated = undefined;
+            }
+
+            return {
+              id: `history_${msg.id}`,
+              type: messageType,
+              text: displayText,
+              translated: displayTranslated,
+              sourceLang: msg.source_lang,
+              targetLang: msg.target_lang,
+              timestamp: msg.created_at,
+              status: 'sent'
+            };
+          });
+
+          setMessages(formattedMessages);
+        }
+      } catch (error) {
+        console.error('Failed to load chat history:', error);
+      }
     });
 
     // 통합 메시지 수신
