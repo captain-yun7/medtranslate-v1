@@ -35,11 +35,34 @@ export function useChat({ socket, roomId, userType, language, agentId }: UseChat
     socket.on('new_message', (data) => {
       const messageType = data.sender_type === userType ? 'sent' : 'received';
 
+      // Agent의 경우 received 메시지는 한국어 번역을 주 텍스트로 표시
+      // Customer의 경우 received 메시지는 번역된 외국어를 주 텍스트로 표시
+      let displayText = data.text;
+      let displayTranslated = data.translated_text;
+
+      if (userType === 'agent' && messageType === 'received') {
+        // 상담사가 고객 메시지를 받을 때: 한국어 번역을 주로, 원문을 번역으로
+        displayText = data.translated_text;
+        displayTranslated = data.text;
+      } else if (userType === 'agent' && messageType === 'sent') {
+        // 상담사가 보낸 메시지: 한국어만 표시 (번역 없음)
+        displayText = data.text;
+        displayTranslated = undefined;
+      } else if (userType === 'customer' && messageType === 'received') {
+        // 고객이 상담사 메시지를 받을 때: 번역된 외국어를 주로, 한국어 원문을 번역으로
+        displayText = data.text;
+        displayTranslated = data.translated_text;
+      } else if (userType === 'customer' && messageType === 'sent') {
+        // 고객이 보낸 메시지: 외국어만 표시 (번역 없음)
+        displayText = data.text;
+        displayTranslated = undefined;
+      }
+
       setMessages(prev => [...prev, {
         id: `msg_${Date.now()}_${Math.random()}`,
         type: messageType,
-        text: data.text,
-        translated: data.translated_text,
+        text: displayText,
+        translated: displayTranslated,
         sourceLang: data.source_lang,
         targetLang: data.target_lang,
         timestamp: new Date().toISOString(),
