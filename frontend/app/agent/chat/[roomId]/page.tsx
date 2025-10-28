@@ -90,7 +90,7 @@ export default function AgentChatPage({ params }: { params: { roomId: string } }
                 }`} />
               </div>
               <div>
-                <h1 className="text-lg font-semibold">Customer Chat</h1>
+                <h1 className="text-lg font-semibold">Agent Console</h1>
                 <p className="text-xs text-purple-100">
                   {isOnline ? 'Customer is online' : 'Waiting for customer'}
                 </p>

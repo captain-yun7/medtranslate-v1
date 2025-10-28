@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from app.services.cache import cache_service
+from app.services.translation import translation_service
 
 router = APIRouter(prefix="/api/monitoring", tags=["Monitoring"])
 
@@ -27,3 +28,11 @@ async def reset_cache_stats():
     """
     cache_service.reset_stats()
     return {"message": "Cache stats reset successfully"}
+
+
+@router.get("/translation/provider")
+async def get_translation_provider():
+    """
+    현재 사용 중인 번역 프로바이더 정보 조회
+    """
+    return translation_service.get_provider_info()

@@ -1,35 +1,41 @@
-from anthropic import AsyncAnthropic
+"""
+Multi-Provider Translation Service
+Supports OpenAI, Claude, Google, DeepL, and Mock providers
+"""
+
 from typing import Optional
 import hashlib
-from app.services.cache import cache_service
-from app.config import settings
 import logging
 import asyncio
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+from app.services.cache import cache_service
+from app.config import settings
+from app.services.providers import (
+    BaseTranslationProvider,
+    OpenAIProvider,
+    ClaudeProvider,
+    MockProvider,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class TranslationService:
+    """
+    멀티 프로바이더 번역 서비스
+
+    환경 변수로 번역 프로바이더를 선택할 수 있습니다:
+    - TRANSLATION_PROVIDER: 'openai', 'claude', 'google', 'deepl', 'mock'
+    - OPENAI_API_KEY: OpenAI API 키
+    - ANTHROPIC_API_KEY: Claude API 키
+    - OPENAI_MODEL: OpenAI 모델 (기본: gpt-3.5-turbo)
+    """
+
     def __init__(self):
-        self.claude = None
         self.medical_glossary = self._load_glossary()
-
-    def _init_claude(self):
-        """Lazy initialization of Claude client"""
-        if self.claude is None:
-            try:
-                # API 키 확인
-                if not settings.ANTHROPIC_API_KEY or settings.ANTHROPIC_API_KEY == "your-api-key-here":
-                    logger.warning("Anthropic API key not configured - using mock translation")
-                    return False
-
-                self.claude = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-                return True
-            except Exception as e:
-                logger.error(f"Failed to initialize Claude client: {e}")
-                return False
-        return True
+        self.provider: Optional[BaseTranslationProvider] = None
+        self._init_provider()
 
     def _load_glossary(self):
         """의료 용어집 로드"""
@@ -46,6 +52,79 @@ class TranslationService:
             }
         }
 
+    def _init_provider(self):
+        """프로바이더 초기화 (Factory Pattern)"""
+        provider_name = getattr(settings, 'TRANSLATION_PROVIDER', 'mock').lower()
+
+        logger.info(f"Initializing translation provider: {provider_name}")
+
+        if provider_name == 'openai':
+            self.provider = self._init_openai()
+        elif provider_name == 'claude':
+            self.provider = self._init_claude()
+        elif provider_name == 'mock':
+            self.provider = MockProvider(self.medical_glossary)
+        else:
+            logger.warning(f"Unknown provider '{provider_name}', falling back to mock")
+            self.provider = MockProvider(self.medical_glossary)
+
+        # Fallback to Mock if provider initialization failed
+        if self.provider is None or not self.provider.is_available():
+            logger.warning(f"Provider '{provider_name}' not available, using Mock provider")
+            self.provider = MockProvider(self.medical_glossary)
+
+        logger.info(f"Translation provider ready: {self.provider.name}")
+
+    def _init_openai(self) -> Optional[OpenAIProvider]:
+        """OpenAI 프로바이더 초기화"""
+        try:
+            api_key = getattr(settings, 'OPENAI_API_KEY', None)
+            if not api_key or api_key == "your-api-key-here":
+                logger.warning("OpenAI API key not configured")
+                return None
+
+            model = getattr(settings, 'OPENAI_MODEL', 'gpt-3.5-turbo')
+            temperature = getattr(settings, 'OPENAI_TEMPERATURE', 0.3)
+
+            provider = OpenAIProvider(
+                api_key=api_key,
+                medical_glossary=self.medical_glossary,
+                model=model,
+                temperature=temperature
+            )
+
+            if provider.is_available():
+                return provider
+            return None
+
+        except Exception as e:
+            logger.error(f"Failed to initialize OpenAI provider: {e}")
+            return None
+
+    def _init_claude(self) -> Optional[ClaudeProvider]:
+        """Claude 프로바이더 초기화"""
+        try:
+            api_key = getattr(settings, 'ANTHROPIC_API_KEY', None)
+            if not api_key or api_key == "your-api-key-here":
+                logger.warning("Anthropic API key not configured")
+                return None
+
+            model = getattr(settings, 'CLAUDE_MODEL', 'claude-sonnet-4-5-20250929')
+
+            provider = ClaudeProvider(
+                api_key=api_key,
+                medical_glossary=self.medical_glossary,
+                model=model
+            )
+
+            if provider.is_available():
+                return provider
+            return None
+
+        except Exception as e:
+            logger.error(f"Failed to initialize Claude provider: {e}")
+            return None
+
     async def translate(
         self,
         text: str,
@@ -55,6 +134,15 @@ class TranslationService:
     ) -> str:
         """
         AI 번역 (캐싱 포함, 에러 핸들링, Retry)
+
+        Args:
+            text: 번역할 텍스트
+            source_lang: 소스 언어 코드
+            target_lang: 타겟 언어 코드
+            context: 컨텍스트 ('medical', 'general')
+
+        Returns:
+            번역된 텍스트
         """
         # 1. 캐시 확인
         cache_key = self._get_cache_key(text, source_lang, target_lang)
@@ -76,7 +164,7 @@ class TranslationService:
 
         except Exception as e:
             logger.error(f"Translation failed after retries: {str(e)}")
-            # Fallback: 기본 번역 반환
+            # Fallback: Mock 번역 반환
             return self._get_fallback_translation(text, source_lang, target_lang)
 
     @retry(
@@ -92,114 +180,43 @@ class TranslationService:
         context: str
     ) -> str:
         """Retry 로직이 포함된 번역"""
-        return await self._translate_with_claude(text, source_lang, target_lang, context)
+        if self.provider is None:
+            raise ValueError("Translation provider not initialized")
 
-    async def _translate_with_claude(
-        self,
-        text: str,
-        source_lang: str,
-        target_lang: str,
-        context: str
-    ) -> str:
-        """Claude API로 번역"""
-
-        # Initialize Claude client if not already done
-        if not self._init_claude():
-            # API 키가 없으면 mock 번역 반환
-            return self._get_mock_translation(text, source_lang, target_lang)
-
-        # 용어집 컨텍스트 생성
-        glossary_context = self._create_glossary_context(source_lang, target_lang)
-
-        # 언어별 이름 매핑
-        lang_names = {
-            'ko': '한국어',
-            'en': 'English',
-            'ja': '日本語',
-            'zh': '中文',
-            'vi': 'Tiếng Việt',
-            'th': 'ภาษาไทย'
-        }
-
-        prompt = f"""당신은 의료 전문 통역사입니다.
-다음 의료 상담 메시지를 {lang_names.get(target_lang, target_lang)}로 정확하게 번역해주세요.
-
-원문 언어: {lang_names.get(source_lang, source_lang)}
-원문: {text}
-
-의료 용어 참고:
-{glossary_context}
-
-번역 시 주의사항:
-1. 의료 용어는 정확하게 번역
-2. 환자/의료진의 의도와 감정을 정확히 전달
-3. 격식있고 공손한 표현 사용
-4. 증상이나 통증 표현은 명확하게 번역
-5. 문화적 차이를 고려한 자연스러운 표현
-
-번역문만 출력하세요. 설명이나 주석 없이 번역 결과만 제공하세요."""
-
-        message = await self.claude.messages.create(
-            model="claude-sonnet-4-5-20250929",
-            max_tokens=1024,
-            messages=[{
-                "role": "user",
-                "content": prompt
-            }]
-        )
-
-        return message.content[0].text.strip()
-
-    def _create_glossary_context(self, source_lang: str, target_lang: str) -> str:
-        """용어집 컨텍스트 생성"""
-        if source_lang not in self.medical_glossary and target_lang not in self.medical_glossary:
-            return ""
-
-        context_lines = []
-
-        # 한국어 기준으로 용어집 생성
-        if source_lang == 'ko':
-            for ko_term, translations in list(self.medical_glossary['ko'].items())[:20]:
-                if target_lang in translations:
-                    target_term = translations[target_lang]
-                    context_lines.append(f"- {ko_term} → {target_term}")
-        elif target_lang == 'ko':
-            for ko_term, translations in list(self.medical_glossary['ko'].items())[:20]:
-                if source_lang in translations:
-                    source_term = translations[source_lang]
-                    context_lines.append(f"- {source_term} → {ko_term}")
-
-        return "\n".join(context_lines)
+        return await self.provider.translate(text, source_lang, target_lang, context)
 
     def _get_cache_key(self, text: str, source_lang: str, target_lang: str) -> str:
         """캐시 키 생성"""
-        content = f"{text}:{source_lang}:{target_lang}"
+        # 프로바이더 이름도 캐시 키에 포함 (프로바이더별로 다른 번역)
+        provider_name = self.provider.name if self.provider else "unknown"
+        content = f"{provider_name}:{text}:{source_lang}:{target_lang}"
         hash_key = hashlib.md5(content.encode()).hexdigest()
         return f"trans:{hash_key}"
 
-    def _get_mock_translation(self, text: str, source_lang: str, target_lang: str) -> str:
-        """Mock 번역 (API 키가 없을 때)"""
-        lang_names = {
-            'ko': 'Korean',
-            'en': 'English',
-            'ja': 'Japanese',
-            'zh': 'Chinese',
-            'vi': 'Vietnamese',
-            'th': 'Thai'
-        }
-        return f"[MOCK] {text} (translated from {lang_names.get(source_lang, source_lang)} to {lang_names.get(target_lang, target_lang)})"
-
     def _get_fallback_translation(self, text: str, source_lang: str, target_lang: str) -> str:
         """Fallback 번역 (에러 발생 시)"""
-        # 용어집에서 직접 번역 시도
-        if source_lang == 'ko' and source_lang in self.medical_glossary:
-            for ko_term, translations in self.medical_glossary[source_lang].items():
-                if ko_term in text and target_lang in translations:
-                    text = text.replace(ko_term, translations[target_lang])
-                    return f"[Simple Translation] {text}"
+        # Mock 프로바이더로 fallback
+        mock_provider = MockProvider(self.medical_glossary)
+        try:
+            # Sync wrapper for async call
+            import asyncio
+            loop = asyncio.get_event_loop()
+            return loop.run_until_complete(
+                mock_provider.translate(text, source_lang, target_lang)
+            )
+        except:
+            return f"[Translation Failed] {text}"
 
-        # 원문 반환
-        return f"[Translation Failed] {text}"
+    def get_provider_info(self) -> dict:
+        """현재 프로바이더 정보 반환"""
+        if self.provider is None:
+            return {"provider": "None", "available": False}
+
+        return {
+            "provider": self.provider.name,
+            "available": self.provider.is_available(),
+            "type": type(self.provider).__name__
+        }
 
 
 # 싱글톤 인스턴스

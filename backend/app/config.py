@@ -3,8 +3,19 @@ from typing import List
 
 
 class Settings(BaseSettings):
+    # Translation Provider Settings
+    TRANSLATION_PROVIDER: str = "mock"  # 'openai', 'claude', 'mock'
+
     # API Keys
-    ANTHROPIC_API_KEY: str
+    ANTHROPIC_API_KEY: str = "your-api-key-here"
+    OPENAI_API_KEY: str = "your-api-key-here"
+
+    # OpenAI Settings
+    OPENAI_MODEL: str = "gpt-3.5-turbo"  # 'gpt-4', 'gpt-3.5-turbo'
+    OPENAI_TEMPERATURE: float = 0.3
+
+    # Claude Settings
+    CLAUDE_MODEL: str = "claude-sonnet-4-5-20250929"
 
     # Database
     DATABASE_URL: str = "postgresql://user:pass@localhost:5432/medtranslate"
